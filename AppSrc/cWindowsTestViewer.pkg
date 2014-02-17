@@ -1,0 +1,147 @@
+Use Windows.pkg
+Use cRichEdit.pkg
+
+Object oAutoRun is a cIdleHandler
+    Set pbEnabled to False 
+    Property Integer[] paObjects
+    Property Integer[] paMessages
+    
+    Procedure RegisterAutoDisplay Integer hObj Integer iMsg 
+        Integer[] aObjects
+        Integer[] aMessages
+        Integer iMax 
+        
+        Get paObjects to aObjects
+        Get paMessages to aMessages
+
+        Set pbEnabled to True 
+        Move (SizeOfArray(aObjects)) to iMax
+        Move hObj to aObjects[iMax]
+        Move iMsg to aMessages[iMax]
+
+        Set paObjects to aObjects
+        Set paMessages to aMessages
+    End_Procedure
+    
+    Procedure OnIdle
+        Integer[] aObjects
+        Integer[] aMessages
+        Integer iMax
+        Integer iPos 
+        
+        Get paObjects to aObjects
+        Get paMessages to aMessages
+
+        Set pbEnabled to False 
+        Move (SizeOfArray(aObjects)) to iMax
+        for iPos from 0 to (iMax-1)
+            Send aMessages[iPos] to aObjects[iPos]
+        Loop
+
+        Set paObjects to (ResizeArray(aObjects,0))
+        Set paMessages to (ResizeArray(aMessages,0))
+    End_Procedure
+End_Object
+
+
+Class cWindowsTestViewer is a Group 
+    Procedure CreateLabels 
+        Object txtPassed is a TextBox
+            Set Auto_Size_State to False 
+            Set Size to 10 65
+            Set Location to ( (hi(Size(Parent(Self)))) - 15) 7
+            Set Label to 'Passed Tests: 00000'
+            Set TextColor to clWhite
+            Set color to clGreen
+            Set peAnchors to anBottomLeft
+        End_Object
+        Object txtFailed is a TextBox
+            Set Auto_Size_State to False 
+            Set Size to 10 65
+            Set Location to ( (hi(Size(Parent(Self)))) - 15) 77
+            Set Label to 'Failed Tests: 00000'
+            Set TextColor to clWhite
+            Set Color to clRed
+            Set peAnchors to anBottomLeft
+        End_Object
+        Object txtUnknown is a TextBox
+            Set Auto_Size_State to False 
+            Set Size to 10 65
+            Set Location to ( (hi(Size(Parent(Self)))) - 15) 147
+            Set Label to 'Unknown Tests: 00000'
+            Set TextColor to clWhite
+            Set Color to clBlue
+            Set peAnchors to anBottomLeft
+        End_Object
+    End_Procedure
+
+    Procedure CreateTextBox
+        //Set Size to 198 286
+        Object oTestDetail is a cRichEdit
+            Set Size to ( (hi(Size(Parent(Self)))) - 27) 278
+            Set Location to 8 4
+            Set peAnchors to anAll
+        End_Object
+    End_Procedure
+    
+    Procedure construct_object 
+        Forward Send Construct_Object
+        
+        Set peAnchors to anAll
+        
+        Property Integer piPassed
+        Property Integer piFailed
+        Property Integer piUnknown
+        
+    End_Procedure
+    
+    Procedure End_Construct_Object
+        Send CreateLabels
+        Send CreateTextBox
+
+        Send AssignTestDisplay to ghoTestFramework (Self)
+        Send RegisterAutoDisplay to oAutoRun (ghoTestFramework) msg_runTests
+        Forward Send End_Construct_Object        
+    End_Procedure
+
+    Procedure DrawPasses
+        Set Value of txtPassed to ("Passed: "+(String(piPassed(Self))))
+        Set Value of txtFailed to ("Failed: "+(String(piFailed(Self))))
+        Set Value of txtUnknown to ("Unknown: "+(String(piUnknown(Self))))
+    End_Procedure
+    
+    Procedure TestResult String sText Boolean isPassed
+        If (isPassed) Begin 
+            Set TextColor of oTestDetail to clGreen
+            Set TextBackColor of oTestDetail to clWhite 
+            Set piPassed to ((piPassed(Self)) + 1)
+            Send AppendTextLn to oTestDetail ( "[+] " + sText )
+        End
+        Else Begin 
+            Set TextColor of oTestDetail to clWhite
+            Set TextBackColor of oTestDetail to clRed
+            Send AppendTextLn to oTestDetail ( "[X] " + sText )
+            Set piFailed to ((piFailed(Self)) + 1)
+        End
+        Send DrawPasses
+    End_Procedure
+    
+    Procedure UnknownResult String sText 
+        Set TextColor of oTestDetail to clBlue
+        Set TextBackColor of oTestDetail to clWhite 
+        Send AppendTextLn to oTestDetail ( "[?] " + sText )
+        Set piUnknown to ((piUnknown(Self)) + 1)
+        Send DrawPasses
+    End_Procedure
+    
+    Procedure ClearTests 
+        Set piPassed to 0 
+        Set piFailed to 0 
+        Set piUnknown to 0 
+        Send DrawPasses
+        Send Delete_Data to oTestDetail 
+    End_Procedure
+    
+End_Class
+
+    

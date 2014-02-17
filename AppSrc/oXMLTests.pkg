@@ -1,0 +1,27 @@
+
+
+Use xmlparser.pkg
+
+Object oBaseXML is a cXMLParser
+End_Object
+
+Object oXMLTests is a cTestGroup
+    Object oTestStart is a cTest
+        Procedure onTest
+            Send assert "Test Frameworek is installed" (True) 
+        End_Procedure
+    End_Object
+    
+    Object oTestBreak is a cTest 
+        Procedure onTest
+            tXMLStruct[] aList 
+            String sTmp 
+            
+            Move "<this a='hello' b='there'>a line<of broken/>xml</so there>" to sTmp 
+            Move (TokenizeXML(oBaseXML,sTmp)) to aList
+        End_Procedure
+        
+        
+    End_Object
+    
+End_Object

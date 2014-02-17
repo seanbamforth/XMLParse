@@ -1,0 +1,200 @@
+//this is an xml parser.
+
+Enum_List
+    Define C_OUTSIDE 
+    Define C_COMMENT_TAG 
+    Define C_TITLE_TAG 
+    Define C_TEXT 
+    Define C_END_TAG 
+    Define C_START_TAG  
+    Define C_LONE_TAG  
+End_Enum_List
+
+Struct tAttribute 
+    String sAttribute  
+    String sValue 
+End_Struct
+
+Struct tXMLStruct
+    String sValue 
+    String sCode 
+    Integer iType 
+    tAttribute[] aAttributes
+End_Struct
+
+//todo: strip out all comments. e.g. <!-- declarations for <head> & <body> -->
+
+Class cXMLParser is a cObject 
+    Function decodeHTML String sInp Returns String 
+        Move (Replaces("&quot;",sInp,'"')) to sInp     
+        Move (Replaces("&apos;",sInp,"'")) to sInp     
+        Move (Replaces("&lt;",sInp,'<')) to sInp     
+        Move (Replaces("&gt;",sInp,'>')) to sInp     
+        Move (Replaces("&amp;",sInp,'&')) to sInp     
+        
+        Function_Return sInp 
+    End_Function
+
+    Function tagSplit String sInp Returns String[]
+        Integer[] aBreakPoint
+        String[] aTags 
+        Char[] myCharArray
+        Integer iMax 
+        Integer iPos 
+        String sBlockChar 
+        Address pStr
+        String sChar 
+        Integer iStart 
+        Integer iLength   
+        
+        Move (Length(sInp)) to iMax
+        Move (ResizeArray(myCharArray,iMax)) to myCharArray
+        Move (AddressOf(myCharArray)) to pStr
+        Move sInp to pStr
+        
+        Move 1 to aBreakPoint[0]
+        
+        Move "" to sBlockChar
+        For iPos from 0 to (iMax-1)
+            Move (Character(myCharArray[iPos])) to sChar
+            If (sChar = (Character(9))) Move " " to sChar 
+            
+            If ((sBlockChar="<space>") and (sChar<>" ")) Move "" to sBlockChar 
+             
+            If (sBlockChar<>"<space>") Begin
+                If ((sChar<>" ") and (sBlockChar=sChar)) Move "" to sBlockChar
+                Else If (sChar='"') Move '"' to sBlockChar
+                Else If (sChar="'") Move "'" to sBlockChar
+                Else If (sBlockChar="") Begin 
+                    If (sChar=" ") Begin 
+                        Move (iPos+1) to aBreakPoint[ SizeOfArray(aBreakPoint)]
+                        Move "<space>" to sBlockChar
+                    End
+                End
+            End 
+        Loop 
+        
+        Move (iMax+1) to aBreakPoint[ SizeOfArray(aBreakPoint)]
+        
+        Move (SizeOfArray(aBreakPoint)) to iMax 
+        For iPos from 0 to (iMax-2) 
+            Move aBreakPoint[iPos] to iStart 
+            Move (aBreakPoint[iPos+1]-aBreakPoint[iPos]) to iLength 
+            Move (trim(Mid(sInp,iLength,iStart))) to aTags[SizeOfArray(aTags)]
+        Loop
+        
+        Function_Return aTags     
+    End_Function
+    
+    Function attributeLeft String sAttribute Returns String 
+        Integer iTmp
+        Move (Pos("=",sAttribute)) to iTmp 
+        If (iTmp<>0) Begin
+            Move (Left(sAttribute,iTmp-1)) to sAttribute 
+        End 
+        Function_Return (Lowercase(sAttribute)) 
+    End_Function
+    
+    Function attributeRight String sAttribute Returns String 
+        Integer iTmp
+        Move (Pos("=",sAttribute)) to iTmp 
+        If (iTmp=0) Function_Return ""
+        
+        Move (mid(sAttribute, (Length(sAttribute)), (iTmp+1))) to sAttribute 
+        Move (Trim(sAttribute)) to sAttribute 
+        If ( ((Left(sAttribute,1))="'") and ((Right(sAttribute,1))="'") ) Move (Replaces("'",sAttribute,"")) to sAttribute 
+        If ( ((Left(sAttribute,1))='"') and ((Right(sAttribute,1))='"') ) Move (Replaces('"',sAttribute,"")) to sAttribute 
+        
+        Function_Return (decodeHTML(Self,sAttribute))
+    End_Function
+    
+    Function parseNode String sInp Returns tXMLStruct
+        tXMLStruct theNode 
+        Integer iMax 
+        Integer iPos 
+        
+        Move sInp to theNode.sValue
+        String[] aTags
+        Move (Length(sInp)) to iMax 
+        
+        If ((Left(sInp,1)) <> "<") Begin 
+            Move (decodeHTML(Self,theNode.sValue)) to theNode.sValue
+            Move "{text}" to theNode.sCode
+            Move C_TEXT to theNode.iType
+            Function_Return theNode
+        End
+        
+        If ((Left(sInp,2)) = "</") Begin 
+           Move (Mid(sInp,(iMax-3),3)) to theNode.sCode
+           Move C_END_TAG to theNode.iType
+        End
+        Else If ((Left(sInp,2)) = "<?") Begin 
+           Move (Mid(sInp,(iMax-4),3)) to theNode.sCode
+           Move C_TITLE_TAG to theNode.iType
+        End
+        Else If ((Left(sInp,4)) = "<!--") Begin 
+           Move (Mid(sInp,(iMax-7),5)) to theNode.sCode
+           Move C_COMMENT_TAG to theNode.iType
+        End
+        Else If ((RIGHT(sInp,2)) = "/>") Begin 
+           Move (Mid(sInp,(iMax-3),2)) to theNode.sCode
+           Move C_LONE_TAG to theNode.iType
+        End
+        Else Begin 
+           Move (Mid(sInp,(iMax-2),2)) to theNode.sCode
+           Move C_START_TAG to theNode.iType
+        End
+        
+        Move (tagSplit(Self,theNode.sCode)) to aTags
+        Move (SizeOfArray(aTags)) to iMax 
+        If (iMax>0) Begin 
+            Move (lowercase(aTags[0])) to theNode.sCode
+        End
+        If (iMax>1) Begin 
+            For iPos from 1 to (iMax-1) 
+                Move (attributeLeft(Self,aTags[iPos])) to theNode.aAttributes[iPos-1].sAttribute
+                Move (attributeRight(Self,aTags[iPos])) to theNode.aAttributes[iPos-1].sValue
+            Loop
+        End 
+        
+        Function_Return theNode
+    End_Function
+    
+    Function TokenizeXML String sInp Returns tXMLStruct[]
+        tXMLStruct[] aList 
+        Integer iState 
+        Char[] myCharArray
+        Address pStr
+        Integer iPos 
+        Integer iMax
+        String sCurrent 
+        String sChar   
+        
+        Move C_OUTSIDE to iState 
+        
+        Move (Length(sInp)) to iMax
+        Move (ResizeArray(myCharArray,iMax)) to myCharArray
+        Move (AddressOf(myCharArray)) to pStr
+        Move sInp to pStr
+        
+        Move "" to sCurrent
+        For iPos from 0 to (iMax-1)
+            Move (Character(myCharArray[iPos])) to sChar
+            If (sChar="<") Begin 
+                If ((Trim(sCurrent)) <> "") Move (parseNode(Self,sCurrent)) to aList[sizeOfArray(aList)]
+                Move sChar to sCurrent                 
+            End
+            Else If (sChar=">") Begin 
+                Append sCurrent sChar 
+                If ((Trim(sCurrent)) <> "") Move (parseNode(Self,sCurrent)) to aList[sizeOfArray(aList)]
+                Move "" to sCurrent  
+            End
+            Else Begin 
+                Append sCurrent sChar 
+            End
+        Loop 
+        If ((Trim(sCurrent)) <> "") Move (parseNode(Self,sCurrent)) to aList[sizeOfArray(aList)]
+        
+        Function_Return aList
+    End_Function
+End_Class

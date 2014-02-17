@@ -1,0 +1,61 @@
+Use Windows.pkg
+Use cHtmlHelp.pkg
+Use cApplication.pkg
+
+Object oHtmlHelp is a cHtmlHelp
+End_Object
+
+Object oApplication is a cApplication
+    Set pbPreserveEnvironment to False
+    Set peHelpType to htHtmlHelp
+    Procedure onCreate 
+        Send DoOpenWorkspace "config.ws"
+    End_Procedure
+End_Object
+
+Use SQL.pkg
+
+Use cTestFramework.pkg
+Use cWindowsTestViewer.pkg
+
+Use oXMLTests.pkg
+
+Object oMain is a BasicPanel 
+    Set Location to 10 8
+    Set Size to 225 295
+    Set Label to "XML Parser Tests"
+
+    Object grpTests is a cWindowsTestViewer
+        Set Size to 198 286
+        Set Location to 2 4
+    End_Object
+
+    Object obtnRunTests is a Button
+        Set Size to 14 68
+        Set Location to 206 13
+        Set Label to 'Run Tests Again'
+        Set peAnchors to anBottomLeft
+    
+        // fires when the button is clicked
+        Procedure OnClick
+            Send RunTests to oTestFramework 
+        End_Procedure
+    
+    End_Object
+
+    Object btnClose is a Button
+        Set Location to 204 226
+        Set Label to 'Close'
+        Set peAnchors to anBottomRight
+    
+        // fires when the button is clicked
+        Procedure OnClick
+            Send Close_Panel 
+        End_Procedure
+    End_Object
+End_Object 
+
+
+
+
+Start_UI oMain 

@@ -1,0 +1,168 @@
+Function isTestGroup for cObject Returns Integer
+    Function_Return  False
+End_Function
+
+Global_Variable Handle ghoTestFramework 
+Object oTestFrameWork is a cObject
+    Property Integer phDisplay
+    Property Integer[] paTestObj
+    Property Boolean pisErrorsOff True
+    
+    Procedure registerTest Integer hObj 
+        Integer[] aTestObj
+        Integer iMax 
+        
+        Get paTestObj to aTestObj
+        
+        Move (SizeOfArray(aTestObj)) to iMax 
+        Move hObj to aTestObj[iMax]
+        
+        Set paTestObj to aTestObj
+    End_Procedure
+    
+    Procedure RunTests 
+        Integer[] aTestObj
+        Integer iMax 
+        Integer iPos 
+        Integer hObj 
+        
+        Send ClearTests 
+        Get paTestObj to aTestObj
+        Move (SizeOfArray(aTestObj)) to iMax 
+        
+        For iPos from 0 to (iMax-1)
+            Move aTestObj[iPos] to hObj 
+            If (isTestGroup(Parent(hObj))) Send PreTest to (Parent(hObj))
+            Send DoTest to hObj 
+            If (isTestGroup(Parent(hObj))) Send PostTest to (Parent(hObj))
+        Loop
+    End_Procedure
+    
+    Procedure PassedTest String sText 
+        Send TestResult to (phDisplay(Self)) sText (True) 
+        If (not(phDisplay(Self))) Procedure_Return 
+    End_Procedure
+    
+    Procedure FailedTest String sText 
+        Send TestResult to (phDisplay(Self)) sText (False) 
+        If (not(phDisplay(Self))) Procedure_Return 
+    End_Procedure
+    
+    Procedure UnknownTest String sText 
+        Send UnknownResult to (phDisplay(Self)) sText 
+        If (not(phDisplay(Self))) Procedure_Return 
+    End_Procedure
+    
+    Procedure ClearTests 
+        If (not(phDisplay(Self))) Procedure_Return 
+        Send ClearTests to (phDisplay(Self)) 
+    End_Procedure
+    
+    Procedure AssignTestDisplay Integer hObj 
+        Set phDisplay to hObj 
+    End_Procedure
+    
+    Move (Self) to ghoTestFramework 
+End_Object
+
+Class cTestGroup is a cObject 
+    Function isTestGroup Returns Integer
+        Function_Return  True
+    End_Function
+
+    Procedure preTest 
+    End_Procedure
+    
+    Procedure PostTest 
+    End_Procedure
+End_Class
+
+Class cTest is a cObject 
+    Procedure construct_object 
+        Property String psTestName 
+        Property Boolean pisHadAssertions  
+        Property String psErrorList 
+        Property Boolean pisTrapErrors
+    End_Procedure
+    
+    Procedure TrapErrors 
+        Set psErrorList to ""
+        Set pisTrapErrors to True 
+    End_Procedure
+    
+    Function calculatedError String sErrText Integer iErrNum Returns String 
+        Integer iFrom 
+        Integer iTo 
+        
+        function_return sErrText
+        
+        Move (RightPos("[",sErrText)) to iFrom
+        Move (RightPos("]",sErrText)) to iTo
+        If ((iFrom < iTo) and (iFrom<>0) and (iTo<>0)) Begin 
+            Move (Mid(sErrText, ((iTo-iFrom)-1), (iFrom+1))) to sErrText
+            Function_Return sErrText
+        End
+
+        Function_Return iErrNum
+    End_Function
+        
+    Function ErrorsReceieved Returns String 
+        Set pisTrapErrors to False 
+        Function_Return (psErrorList(Self)) 
+    End_Procedure
+
+    Function TestName Returns String 
+        If ((psTestName(Self))<>"") Function_Return (psTestName(Self))
+        Else Function_Return (Lowercase(Object_Label(Self)))
+    End_Function
+    
+    Procedure WebTest 
+        Send UnknownTest to (ghoTestFramework) ("Webtest: "+(TestName(Self)))
+        Set pisHadAssertions to (True)
+    End_Procedure
+     
+    Procedure onTest 
+        Send UnknownTest to (ghoTestFramework) (TestName(Self))
+        Set pisHadAssertions to (True)
+    End_Procedure
+
+    Procedure Error_Report Integer iErrNum Integer iErrLine String sErrText
+        String sTmp
+        String sErrors 
+        
+        If (pisTrapErrors(Self)) Begin
+            Get psErrorList to sErrors 
+            If (sErrors<>"") Append sErrors ","
+            Append sErrors (calculatedError(Self,sErrText,iErrNum))
+            Set psErrorList to sErrors
+        End
+        Else Begin
+            Get Error_Text iErrNum to sTmp
+            Move (sTmp + " " + sErrText) to sErrText 
+            Send FailedTest to (ghoTestFramework) ( (TestName(Self)) + ": [df_error]" + sErrText + ":" + (String(iErrLine)) +":" + (String(Lasterr)) ) 
+            Set pisHadAssertions to (True)
+        End 
+    End_Procedure
+    
+    Procedure doTest
+        Integer iOldErrorObj 
+        Move Error_Object_Id to  iOldErrorObj 
+        If (pisErrorsOff(ghoTestFramework)) Move (Self) to Error_Object_Id
+        If (pisTrapErrors(Self)) Move (Self) to Error_Object_Id
+        Set pisHadAssertions to (False) 
+        Send onTest 
+        Move iOldErrorObj  to Error_Object_Id 
+        If (not(pisHadAssertions(Self))) Send assert "Assertions NOT found for this test" (False)
+    End_Procedure
+    
+    //send assert "Value is equal to 2000" (iVal=2000)
+    Procedure assert String sValue Boolean isOK 
+        If isOK Send PassedTest to (ghoTestFramework) ( (TestName(Self)) + ": " + sValue)
+        Else Send FailedTest to (ghoTestFramework) ( (TestName(Self)) + ": " + sValue)
+        Set pisHadAssertions to (True)
+    End_Procedure
+    
+    Procedure End_Construct_Object
+        Send registerTest to (ghoTestFramework) (Self)
+    End_Procedure
+End_Class
